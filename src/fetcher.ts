@@ -99,12 +99,12 @@ export function fetchRateLimits(codexBinary: string): Promise<RateLimitSnapshot>
 
 function normalizeUsedPercent(snapshot: RateLimitSnapshot): void {
   if (snapshot.primary && snapshot.primary.usedPercent != null) {
-    if (snapshot.primary.usedPercent > 0 && snapshot.primary.usedPercent <= 1) {
+    if (snapshot.primary.usedPercent > 0 && snapshot.primary.usedPercent < 1) {
       snapshot.primary.usedPercent *= 100
     }
   }
   if (snapshot.secondary && snapshot.secondary.usedPercent != null) {
-    if (snapshot.secondary.usedPercent > 0 && snapshot.secondary.usedPercent <= 1) {
+    if (snapshot.secondary.usedPercent > 0 && snapshot.secondary.usedPercent < 1) {
       snapshot.secondary.usedPercent *= 100
     }
   }

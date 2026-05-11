@@ -142,6 +142,30 @@ describe("fetchRateLimits", () => {
     expect(result.primary!.usedPercent).toBe(75)
     expect(result.secondary!.usedPercent).toBe(30)
   })
+
+  it("does not normalize usedPercent of exactly 1 (already 0-100 scale)", async () => {
+    const proc = createMockProcess()
+    ;(spawn as unknown as Mock).mockReturnValue(proc)
+
+    const promise = fetchRateLimits("/usr/local/bin/codex")
+
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({
+          id: 2,
+          result: { rateLimits: { primary: { usedPercent: 1 }, secondary: { usedPercent: 1 } } },
+        }) + "\n"
+      )
+    )
+
+    const result = await promise
+    expect(result.primary!.usedPercent).toBe(1)
+    expect(result.secondary!.usedPercent).toBe(1)
+  })
 })
 
 describe("readCache", () => {
