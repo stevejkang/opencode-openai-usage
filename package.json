@@ -1,6 +1,6 @@
 {
   "name": "opencode-openai-usage",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "OpenCode TUI sidebar plugin displaying OpenAI (Codex) rate limit usage",
   "type": "module",
   "exports": {
