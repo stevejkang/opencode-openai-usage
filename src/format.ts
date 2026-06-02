@@ -43,10 +43,16 @@ export function formatBar(
 
 export function formatWindowLabel(windowDurationMins: number | null | undefined): string {
   if (windowDurationMins == null) return "Unknown"
-  if (windowDurationMins === 300) return "Session"
-  if (windowDurationMins === 10080) return "Weekly"
-  if (windowDurationMins === 1440) return "Daily"
   if (windowDurationMins === 60) return "Hourly"
+  if (windowDurationMins === 300) return "Session"
+  if (windowDurationMins === 1440) return "Daily"
+  if (windowDurationMins === 10080) return "Weekly"
+  if (windowDurationMins === 43200) return "Monthly"
+
+  const totalHours = Math.floor(windowDurationMins / 60)
+  const days = Math.floor(totalHours / 24)
+  if (days > 0) return `${days}d`
+  if (totalHours > 0) return `${totalHours}h`
   return `${windowDurationMins}m`
 }
 

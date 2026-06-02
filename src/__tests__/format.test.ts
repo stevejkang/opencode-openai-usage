@@ -114,6 +114,20 @@ describe("formatWindowLabel", () => {
   it("returns Daily for 1440", () => {
     expect(formatWindowLabel(1440)).toBe("Daily")
   })
+
+  it("returns Monthly for 43200", () => {
+    expect(formatWindowLabel(43200)).toBe("Monthly")
+  })
+
+  it("returns Hourly for 60", () => {
+    expect(formatWindowLabel(60)).toBe("Hourly")
+  })
+
+  it("returns human-readable fallback for unknown durations", () => {
+    expect(formatWindowLabel(720)).toBe("12h")
+    expect(formatWindowLabel(2880)).toBe("2d")
+    expect(formatWindowLabel(30)).toBe("30m")
+  })
 })
 
 describe("getPercentColor", () => {
