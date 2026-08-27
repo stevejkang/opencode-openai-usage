@@ -2,6 +2,7 @@ import {
   formatPercentage,
   formatRelativeTime,
   formatBar,
+  formatThinBar,
   formatWindowLabel,
   getPercentColor,
 } from "../format"
@@ -95,6 +96,63 @@ describe("formatBar", () => {
     const result = formatBar(50, 10)
     expect(result.filled).toBe("█".repeat(5))
     expect(result.empty).toBe("░".repeat(5))
+  })
+})
+
+describe("formatThinBar", () => {
+  it("returns all empty for null utilization", () => {
+    const bar = formatThinBar(null)
+    expect(bar.filled).toBe("")
+    expect(bar.empty).toBe("──────────────")
+  })
+
+  it("returns all empty for undefined utilization", () => {
+    const bar = formatThinBar(undefined)
+    expect(bar.filled).toBe("")
+    expect(bar.empty).toBe("──────────────")
+  })
+
+  it("returns all empty for 0%", () => {
+    const bar = formatThinBar(0)
+    expect(bar.filled).toBe("")
+    expect(bar.empty).toBe("──────────────")
+  })
+
+  it("returns all filled for 100%", () => {
+    const bar = formatThinBar(100)
+    expect(bar.filled).toBe("━━━━━━━━━━━━━━")
+    expect(bar.empty).toBe("")
+  })
+
+  it("returns partial fill for 50%", () => {
+    const bar = formatThinBar(50)
+    expect(bar.filled).toBe("━━━━━━━")
+    expect(bar.empty).toBe("───────")
+    expect(bar.filled.length + bar.empty.length).toBe(14)
+  })
+
+  it("clamps to 0-100 range", () => {
+    const over = formatThinBar(150)
+    expect(over.filled).toBe("━━━━━━━━━━━━━━")
+    expect(over.empty).toBe("")
+    const under = formatThinBar(-10)
+    expect(under.filled).toBe("")
+    expect(under.empty).toBe("──────────────")
+  })
+
+  it("respects custom width parameter", () => {
+    const bar = formatThinBar(50, 10)
+    expect(bar.filled.length + bar.empty.length).toBe(10)
+    expect(bar.filled).toBe("━━━━━")
+    expect(bar.empty).toBe("─────")
+  })
+
+  it("uses thin box-drawing chars, not block chars", () => {
+    const bar = formatThinBar(50)
+    expect(bar.filled).not.toContain("█")
+    expect(bar.empty).not.toContain("░")
+    expect(bar.filled[0]).toBe("━")
+    expect(bar.empty[0]).toBe("─")
   })
 })
 

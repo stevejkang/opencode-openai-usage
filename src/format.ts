@@ -41,6 +41,29 @@ export function formatBar(
   }
 }
 
+/**
+ * Build a thin progress bar string of the given width (for mixed display mode).
+ * Uses box-drawing horizontal lines: ━ (heavy) for filled, ─ (light) for empty.
+ * Returns { filled, empty } strings for separate coloring in the TUI.
+ */
+const THIN_FILLED_CHAR = "━"
+const THIN_EMPTY_CHAR = "─"
+
+export function formatThinBar(
+  usedPercent: number | null | undefined,
+  width: number = BAR_WIDTH,
+): { filled: string; empty: string } {
+  if (usedPercent === null || usedPercent === undefined) {
+    return { filled: "", empty: THIN_EMPTY_CHAR.repeat(width) }
+  }
+  const clamped = Math.max(0, Math.min(100, usedPercent))
+  const filledCount = Math.round((clamped / 100) * width)
+  return {
+    filled: THIN_FILLED_CHAR.repeat(filledCount),
+    empty: THIN_EMPTY_CHAR.repeat(width - filledCount),
+  }
+}
+
 export function formatWindowLabel(windowDurationMins: number | null | undefined): string {
   if (windowDurationMins == null) return "Unknown"
   if (windowDurationMins === 60) return "Hourly"

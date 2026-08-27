@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal } from "solid-js"
+import { createSignal, onMount } from "solid-js"
 import type { TuiPlugin, TuiPluginModule, TuiSlotContext } from "@opencode-ai/plugin/tui"
+import type { ColorInput } from "@opentui/core"
 import type { UsageState, PluginOptions } from "./types"
 import { createRefreshLoop } from "./fetcher"
 import { formatRelativeTime, formatPercentage, formatBar, formatWindowLabel, getPercentColor } from "./format"
@@ -9,10 +10,42 @@ const OPENAI_GREEN = "#10A37F"
 const DEFAULT_REFRESH_INTERVAL_S = 30
 const EXPECTED_LOAD_S = 15
 
+const THIN_FILLED = "━"
+const THIN_EMPTY = "─"
+
+function ThinBar(props: { progress: number; filledColor: ColorInput; emptyColor: ColorInput }) {
+  let ref!: any
+  const [width, setWidth] = createSignal(0)
+
+  const measure = () => {
+    setImmediate(() => {
+      if (ref?.getLayoutNode) {
+        setWidth(ref.getLayoutNode().getComputedWidth())
+      }
+    })
+  }
+
+  onMount(measure)
+
+  const filled = () => Math.floor(width() * Math.max(0, Math.min(1, props.progress)))
+  const remaining = () => width() - filled()
+
+  return (
+    <box height={1} flexGrow={1} ref={ref} flexDirection="row" onSizeChange={measure}>
+      <text fg={props.filledColor} width={filled()}>
+        {THIN_FILLED.repeat(filled())}
+      </text>
+      <text fg={props.emptyColor} width={remaining()}>
+        {THIN_EMPTY.repeat(remaining())}
+      </text>
+    </box>
+  )
+}
+
 const tui: TuiPlugin = async (api, rawOptions, _meta) => {
   const options = (rawOptions as PluginOptions | undefined) ?? {}
   const refreshIntervalMs = (options.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_S) * 1000
-  const displayMode = options.displayMode ?? "text"
+  const displayMode = options.displayMode ?? "mixed"
 
   const [state, setState] = createSignal<UsageState>({ status: "idle", data: null, error: null })
   const [open, setOpen] = createSignal(true)
@@ -112,6 +145,23 @@ const tui: TuiPlugin = async (api, rawOptions, _meta) => {
                       const pct = w.usedPercent ?? null
                       const label = formatWindowLabel(w.windowDurationMins)
                       const pctColor = getPercentColor(pct, valueFg)
+                      if (displayMode === "mixed") {
+                        const resetStr = formatRelativeTime(w.resetsAt)
+                        const resetSuffix = resetStr && resetStr !== "—" ? `resets in ${resetStr}` : ""
+                        return (
+                          <box flexDirection="column">
+                            <box height={1} flexDirection="row" justifyContent="space-between">
+                              <text fg={fg}>{` ${label}`}</text>
+                              <text fg={dim}>{resetSuffix}</text>
+                            </box>
+                            <box height={1} flexDirection="row">
+                              <text>{" "}</text>
+                              <ThinBar progress={(pct ?? 0) / 100} filledColor={pctColor} emptyColor={dim} />
+                              <text fg={pctColor}>{` ${formatPercentage(pct).padStart(4)}`}</text>
+                            </box>
+                          </box>
+                        )
+                      }
                       if (displayMode === "bar") {
                         const bar = formatBar(pct)
                         const resetStr = formatRelativeTime(w.resetsAt)
@@ -140,6 +190,23 @@ const tui: TuiPlugin = async (api, rawOptions, _meta) => {
                       const pct = w.usedPercent ?? null
                       const label = formatWindowLabel(w.windowDurationMins)
                       const pctColor = getPercentColor(pct, valueFg)
+                      if (displayMode === "mixed") {
+                        const resetStr = formatRelativeTime(w.resetsAt)
+                        const resetSuffix = resetStr && resetStr !== "—" ? `resets in ${resetStr}` : ""
+                        return (
+                          <box flexDirection="column">
+                            <box height={1} flexDirection="row" justifyContent="space-between">
+                              <text fg={fg}>{` ${label}`}</text>
+                              <text fg={dim}>{resetSuffix}</text>
+                            </box>
+                            <box height={1} flexDirection="row">
+                              <text>{" "}</text>
+                              <ThinBar progress={(pct ?? 0) / 100} filledColor={pctColor} emptyColor={dim} />
+                              <text fg={pctColor}>{` ${formatPercentage(pct).padStart(4)}`}</text>
+                            </box>
+                          </box>
+                        )
+                      }
                       if (displayMode === "bar") {
                         const bar = formatBar(pct)
                         const resetStr = formatRelativeTime(w.resetsAt)

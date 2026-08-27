@@ -2,7 +2,17 @@
 
 An [opencode](https://opencode.ai) TUI sidebar plugin that displays your OpenAI (Codex) rate limit usage. Shows session and weekly limits with reset countdowns.
 
-**Text mode** (default):
+**Mixed mode** (default):
+```
+▼ OpenAI Usage
+ user@example.com
+ Session       resets in 3h 16m
+ ━━━━━━━━─────────────────  31%
+ Weekly         resets in 4d 5h
+ ━━━──────────────────────  11%
+```
+
+**Text mode** (`"displayMode": "text"`):
 ```
 ▼ OpenAI Usage
  user@example.com
@@ -51,7 +61,7 @@ One config file. Restart. Done.
   "plugin": [["opencode-openai-usage", {
     "enabled": true,
     "refreshInterval": 30,
-    "displayMode": "text",
+    "displayMode": "mixed",
     "headerColor": "#10A37F",
     "valueColor": "#82AAFF",
     "dimColor": "#546E7A"
@@ -62,7 +72,7 @@ One config file. Restart. Done.
 | Option | Default | Description |
 |---|---|---|
 | `refreshInterval` | `30` | Seconds between data refreshes |
-| `displayMode` | `"text"` | `"text"` shows percentage + reset time, `"bar"` shows progress bar + percentage + reset time |
+| `displayMode` | `"mixed"` | `"mixed"` shows thin bar + percentage with label and reset time on a separate row. `"text"` shows percentage + reset time. `"bar"` shows block progress bar + percentage + reset time. |
 | `headerColor` | theme text | Color of window labels (Session, Weekly) |
 | `valueColor` | `#82AAFF` | Color of percentage values |
 | `dimColor` | theme muted | Color of reset times and secondary text |
