@@ -6,7 +6,7 @@ vi.mock("node:fs")
 
 import { execSync, spawn } from "node:child_process"
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs"
-import { findCodexBinary, fetchRateLimits, readCache, writeCache, createRefreshLoop } from "../fetcher"
+import { findCodexBinary, fetchUsageData, readCache, writeCache, createRefreshLoop } from "../fetcher"
 
 function createMockProcess() {
   const stdin = { write: vi.fn() }
@@ -41,12 +41,12 @@ describe("findCodexBinary", () => {
   })
 })
 
-describe("fetchRateLimits", () => {
+describe("fetchUsageData", () => {
   it("sends RPC messages in correct handshake order", async () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/usr/local/bin/codex")
+    const promise = fetchUsageData("/usr/local/bin/codex")
 
     await new Promise((r) => setTimeout(r, 0))
 
@@ -58,7 +58,7 @@ describe("fetchRateLimits", () => {
     proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
     await new Promise((r) => setTimeout(r, 0))
 
-    expect(proc.stdin.write).toHaveBeenCalledTimes(3)
+    expect(proc.stdin.write).toHaveBeenCalledTimes(4)
     const initializedCall = JSON.parse(proc.stdin.write.mock.calls[1][0].replace("\n", ""))
     expect(initializedCall.method).toBe("initialized")
     expect(initializedCall.id).toBeUndefined()
@@ -66,6 +66,11 @@ describe("fetchRateLimits", () => {
     const rateLimitsCall = JSON.parse(proc.stdin.write.mock.calls[2][0].replace("\n", ""))
     expect(rateLimitsCall.method).toBe("account/rateLimits/read")
     expect(rateLimitsCall.id).toBe(2)
+
+    const accountReadCall = JSON.parse(proc.stdin.write.mock.calls[3][0].replace("\n", ""))
+    expect(accountReadCall.method).toBe("account/read")
+    expect(accountReadCall.id).toBe(3)
+    expect(accountReadCall.params).toEqual({})
 
     proc.stdout.emit(
       "data",
@@ -76,10 +81,89 @@ describe("fetchRateLimits", () => {
         }) + "\n"
       )
     )
+    proc.stdout.emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({
+          id: 3,
+          result: {
+            account: { type: "chatgpt", email: "user@example.com", planType: "plus" },
+            requiresOpenaiAuth: false,
+          },
+        }) + "\n"
+      )
+    )
 
     const result = await promise
-    expect(result.limitId).toBe("test")
-    expect(result.primary!.usedPercent).toBe(50)
+    expect(result.snapshot.limitId).toBe("test")
+    expect(result.snapshot.primary!.usedPercent).toBe(50)
+    expect(result.profile).toEqual({ email: "user@example.com", planType: "plus" })
+  })
+
+  it("resolves with null profile after grace period when account/read never answers", async () => {
+    vi.useFakeTimers()
+    const proc = createMockProcess()
+    ;(spawn as unknown as Mock).mockReturnValue(proc)
+
+    const promise = fetchUsageData("/usr/local/bin/codex")
+
+    proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 2, result: { rateLimits: { limitId: "only" } } }) + "\n")
+    )
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    const result = await promise
+    expect(result.snapshot.limitId).toBe("only")
+    expect(result.profile).toBeNull()
+    expect(proc.kill).toHaveBeenCalled()
+  })
+
+  it("ignores non-chatgpt accounts and RPC errors for profile", async () => {
+    const proc = createMockProcess()
+    ;(spawn as unknown as Mock).mockReturnValue(proc)
+
+    const promise = fetchUsageData("/usr/local/bin/codex")
+
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 3, result: { account: { type: "apiKey" } } }) + "\n")
+    )
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 2, result: { rateLimits: { limitId: "key" } } }) + "\n")
+    )
+
+    const result = await promise
+    expect(result.snapshot.limitId).toBe("key")
+    expect(result.profile).toBeNull()
+  })
+
+  it("treats account/read RPC error response as null profile", async () => {
+    const proc = createMockProcess()
+    ;(spawn as unknown as Mock).mockReturnValue(proc)
+
+    const promise = fetchUsageData("/usr/local/bin/codex")
+
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
+    await new Promise((r) => setTimeout(r, 0))
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 3, error: { code: -32600, message: "Invalid request" } }) + "\n")
+    )
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 2, result: { rateLimits: { limitId: "err" } } }) + "\n")
+    )
+
+    const result = await promise
+    expect(result.snapshot.limitId).toBe("err")
+    expect(result.profile).toBeNull()
   })
 
   it("rejects with timeout after 15s", async () => {
@@ -87,7 +171,7 @@ describe("fetchRateLimits", () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/usr/local/bin/codex")
+    const promise = fetchUsageData("/usr/local/bin/codex")
     vi.advanceTimersByTime(15_000)
 
     await expect(promise).rejects.toThrow("Codex RPC timed out after 15s")
@@ -98,7 +182,7 @@ describe("fetchRateLimits", () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/nonexistent/codex")
+    const promise = fetchUsageData("/nonexistent/codex")
 
     const err = new Error("spawn ENOENT") as NodeJS.ErrnoException
     err.code = "ENOENT"
@@ -111,7 +195,7 @@ describe("fetchRateLimits", () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/usr/local/bin/codex")
+    const promise = fetchUsageData("/usr/local/bin/codex")
 
     await new Promise((r) => setTimeout(r, 0))
     proc.stdout.emit("data", Buffer.from("not valid json\n"))
@@ -123,7 +207,7 @@ describe("fetchRateLimits", () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/usr/local/bin/codex")
+    const promise = fetchUsageData("/usr/local/bin/codex")
 
     await new Promise((r) => setTimeout(r, 0))
     proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
@@ -137,17 +221,21 @@ describe("fetchRateLimits", () => {
         }) + "\n"
       )
     )
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 3, result: { account: null } }) + "\n")
+    )
 
     const result = await promise
-    expect(result.primary!.usedPercent).toBe(75)
-    expect(result.secondary!.usedPercent).toBe(30)
+    expect(result.snapshot.primary!.usedPercent).toBe(75)
+    expect(result.snapshot.secondary!.usedPercent).toBe(30)
   })
 
   it("does not normalize usedPercent of exactly 1 (already 0-100 scale)", async () => {
     const proc = createMockProcess()
     ;(spawn as unknown as Mock).mockReturnValue(proc)
 
-    const promise = fetchRateLimits("/usr/local/bin/codex")
+    const promise = fetchUsageData("/usr/local/bin/codex")
 
     await new Promise((r) => setTimeout(r, 0))
     proc.stdout.emit("data", Buffer.from(JSON.stringify({ id: 1, result: {} }) + "\n"))
@@ -161,10 +249,14 @@ describe("fetchRateLimits", () => {
         }) + "\n"
       )
     )
+    proc.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: 3, result: { account: null } }) + "\n")
+    )
 
     const result = await promise
-    expect(result.primary!.usedPercent).toBe(1)
-    expect(result.secondary!.usedPercent).toBe(1)
+    expect(result.snapshot.primary!.usedPercent).toBe(1)
+    expect(result.snapshot.secondary!.usedPercent).toBe(1)
   })
 })
 
@@ -177,14 +269,30 @@ describe("readCache", () => {
     expect(readCache()).toBeNull()
   })
 
-  it("returns data when cache is fresh", () => {
+  it("returns data and profile when cache is fresh", () => {
+    const freshTimestamp = Date.now() - 5 * 60 * 1000
+    ;(readFileSync as unknown as Mock).mockReturnValue(
+      JSON.stringify({
+        timestamp: freshTimestamp,
+        data: { limitId: "cached" },
+        profile: { email: "cached@example.com", planType: "plus" },
+      })
+    )
+    const result = readCache()
+    expect(result).not.toBeNull()
+    expect(result!.data.limitId).toBe("cached")
+    expect(result!.profile).toEqual({ email: "cached@example.com", planType: "plus" })
+  })
+
+  it("returns null profile for legacy cache without profile", () => {
     const freshTimestamp = Date.now() - 5 * 60 * 1000
     ;(readFileSync as unknown as Mock).mockReturnValue(
       JSON.stringify({ timestamp: freshTimestamp, data: { limitId: "cached" } })
     )
     const result = readCache()
     expect(result).not.toBeNull()
-    expect(result!.limitId).toBe("cached")
+    expect(result!.data.limitId).toBe("cached")
+    expect(result!.profile).toBeNull()
   })
 
   it("returns null on file read error", () => {
@@ -201,7 +309,7 @@ describe("writeCache", () => {
     ;(writeFileSync as unknown as Mock).mockReturnValue(undefined)
     ;(renameSync as unknown as Mock).mockReturnValue(undefined)
 
-    writeCache({ limitId: "test" })
+    writeCache({ limitId: "test" }, { email: "test@example.com", planType: "pro" })
 
     expect(mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
     expect(writeFileSync).toHaveBeenCalledWith(
@@ -209,6 +317,9 @@ describe("writeCache", () => {
       expect.any(String),
       { mode: 0o600 }
     )
+    const written = JSON.parse((writeFileSync as unknown as Mock).mock.calls[0][1])
+    expect(written.data.limitId).toBe("test")
+    expect(written.profile).toEqual({ email: "test@example.com", planType: "pro" })
     expect(renameSync).toHaveBeenCalled()
   })
 
@@ -216,7 +327,7 @@ describe("writeCache", () => {
     ;(mkdirSync as unknown as Mock).mockImplementation(() => {
       throw new Error("EACCES")
     })
-    expect(() => writeCache({ limitId: "test" })).not.toThrow()
+    expect(() => writeCache({ limitId: "test" }, null)).not.toThrow()
   })
 })
 

@@ -98,6 +98,12 @@ const tui: TuiPlugin = async (api, rawOptions, _meta) => {
 
             {isOpen ? (
               <box flexDirection="column">
+                {s.profile?.email ? (
+                  <box height={1}>
+                    <text fg={dim}>{` ${s.profile.email}`}</text>
+                  </box>
+                ) : null}
+
                 {data ? (
                   <box flexDirection="column">
                     {/* Session (primary, 5h) */}

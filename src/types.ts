@@ -28,12 +28,40 @@ export type RateLimitResponse = {
   rateLimitsByLimitId?: Record<string, RateLimitSnapshot> | null
 }
 
+// Account profile (from Codex RPC account/read)
+export type AccountProfile = {
+  email?: string | null
+  planType?: string | null
+}
+
+// Raw account/read RPC response
+export type AccountResponse = {
+  account?:
+    | { type?: "apiKey" | "chatgpt"; email?: string | null; planType?: string | null }
+    | null
+  requiresOpenaiAuth?: boolean
+}
+
+// Combined fetch result from a single Codex app-server session
+export type UsageFetch = {
+  snapshot: RateLimitSnapshot
+  profile: AccountProfile | null
+}
+
+// Cached payload shape (profile absent in pre-email caches, treated as null)
+export type CachePayload = {
+  timestamp: number
+  data: RateLimitSnapshot
+  profile?: AccountProfile | null
+}
+
 // Plugin display state
 export type FetchStatus = "idle" | "loading" | "success" | "error" | "not-configured"
 
 export type UsageState = {
   status: FetchStatus
   data?: RateLimitSnapshot | null
+  profile?: AccountProfile | null
   error?: string | null
 }
 

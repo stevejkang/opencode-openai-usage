@@ -5,6 +5,7 @@ An [opencode](https://opencode.ai) TUI sidebar plugin that displays your OpenAI 
 **Text mode** (default):
 ```
 ▼ OpenAI Usage
+ user@example.com
  Session       31%  resets in 3h 16m
  Weekly        11%  resets in 4d 5h
 ```
@@ -12,6 +13,7 @@ An [opencode](https://opencode.ai) TUI sidebar plugin that displays your OpenAI 
 **Bar mode** (`"displayMode": "bar"`):
 ```
 ▼ OpenAI Usage
+ user@example.com
  Session  █████░░░░░░░░░   31% (3h 16m)
  Weekly   ██░░░░░░░░░░░░   11% (4d 5h)
 ```
@@ -73,8 +75,8 @@ Spawns the Codex CLI as a local app-server and communicates via JSON-RPC over st
 1. Locate codex binary in PATH
 2. Spawn: codex app-server --listen stdio://
 3. Send JSON-RPC initialize handshake
-4. Send: account/rateLimits/read
-5. Parse response → primary (5h Session) + secondary (Weekly)
+4. Send: account/rateLimits/read + account/read (in parallel)
+5. Parse responses → rate limits (Session + Weekly) and account email
 6. Display in sidebar with color grading
 ```
 
